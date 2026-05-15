@@ -32,7 +32,7 @@ ceorater lookup NVDA
   Sector: Technology  |  Industry: Semiconductors
 
   Metric                  Value
-  CEORaterScore              98
+  CEORaterScore              99
   AlphaScore                100
   RevCAGR Score             100
   CompScore                   A

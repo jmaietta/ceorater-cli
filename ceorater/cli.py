@@ -1,6 +1,7 @@
 """CEORater CLI — command definitions."""
 
 import json
+import math
 import sys
 
 import click
@@ -65,7 +66,7 @@ def _fmt_score(val) -> str:
         return "-"
     if isinstance(val, str):
         return val
-    return str(round(val))
+    return str(math.floor(val + 0.5))
 
 
 def _fmt_money(val) -> str:
