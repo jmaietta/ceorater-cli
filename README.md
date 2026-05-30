@@ -2,7 +2,7 @@
 
 Command-line interface for [CEORater](https://www.ceorater.com) — institutional-grade CEO performance analytics covering 500+ S&P 500 CEOs.
 
-![CEORater CLI homepage](docs/screenshots/ceorater-home.png)
+![CEORater CLI homepage](https://raw.githubusercontent.com/jmaietta/ceorater-cli/main/docs/screenshots/ceorater-home.png)
 
 ## Install
 
