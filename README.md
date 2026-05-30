@@ -38,7 +38,7 @@ The interactive prompt uses slash commands:
 
 | Command | Description |
 |---------|-------------|
-| `/NVDA` | CEO Analytics by ticker |
+| `/ticker` | CEO Analytics by ticker |
 | `/list` | List CEOs |
 | `/meta` | Dataset freshness and API status |
 | `/help` | Show command menu |

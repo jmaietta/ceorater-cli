@@ -42,7 +42,7 @@ COMP_FIELDS = [
 ]
 
 COMMAND_MENU = (
-    ("/NVDA", "CEO Analytics by ticker"),
+    ("/ticker", "CEO Analytics by ticker"),
     ("/list", "List CEOs"),
     ("/meta", "Dataset freshness and API status"),
     ("/help", "Show this menu"),
