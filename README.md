@@ -40,7 +40,7 @@ The interactive prompt uses slash commands:
 |---------|-------------|
 | `/ticker` | CEO Analytics by ticker |
 | `/list` | List CEOs |
-| `/meta` | Dataset freshness and API status |
+| `/status` | Dataset freshness and API status |
 | `/help` | Show command menu |
 | `/exit` | Quit |
 
@@ -83,7 +83,7 @@ ceorater
 
 ```bash
 ceorater
-/meta
+/status
 ```
 
 ### JSON output for agents and scripts

@@ -44,7 +44,7 @@ COMP_FIELDS = [
 COMMAND_MENU = (
     ("/ticker", "CEO Analytics by ticker"),
     ("/list", "List CEOs"),
-    ("/meta", "Dataset freshness and API status"),
+    ("/status", "Dataset freshness and API status"),
     ("/help", "Show this menu"),
     ("/exit", "Quit"),
 )
@@ -293,9 +293,9 @@ def _interactive_loop() -> None:
             _print_home()
             continue
 
-        if verb == "meta":
+        if verb == "status":
             if len(parts) > 1:
-                console.print("[yellow]Usage:[/yellow] /meta")
+                console.print("[yellow]Usage:[/yellow] /status")
                 continue
             _run_meta(exit_on_error=False)
             continue
