@@ -2,6 +2,8 @@
 
 Command-line interface for [CEORater](https://www.ceorater.com) — institutional-grade CEO performance analytics covering 500+ S&P 500 CEOs.
 
+![CEORater CLI homepage](docs/screenshots/ceorater-home.png)
+
 ## Install
 
 ```bash
@@ -10,20 +12,43 @@ pip install ceorater
 
 ## Setup
 
-Get your API key at [ceorater.com/api-docs.html](https://www.ceorater.com/api-docs.html), then:
+Get your API key at [ceorater.com/api-docs.html](https://www.ceorater.com/api-docs.html), then set the `CEORATER_API_KEY` environment variable.
 
-```bash
-ceorater configure
+PowerShell:
+
+```powershell
+$env:CEORATER_API_KEY="your-api-key"
 ```
 
-Or set the `CEORATER_API_KEY` environment variable.
+macOS/Linux:
+
+```bash
+export CEORATER_API_KEY="your-api-key"
+```
 
 ## Commands
+
+Run the terminal:
+
+```bash
+ceorater
+```
+
+The interactive prompt uses slash commands:
+
+| Command | Description |
+|---------|-------------|
+| `/NVDA` | CEO Analytics by ticker |
+| `/list` | List CEOs |
+| `/meta` | Dataset freshness and API status |
+| `/help` | Show command menu |
+| `/exit` | Quit |
 
 ### Look up a CEO by ticker
 
 ```bash
-ceorater lookup NVDA
+ceorater
+/NVDA
 ```
 
 ```
@@ -47,27 +72,23 @@ ceorater lookup NVDA
   Revenue CAGR            69.3%
 ```
 
-### Search by company, CEO, sector, or industry
-
-```bash
-ceorater search "technology"
-```
-
 ### List all CEOs (paginated)
 
 ```bash
-ceorater list --limit 50
+ceorater
+/list
 ```
 
 ### Check data freshness
 
 ```bash
-ceorater meta
+ceorater
+/meta
 ```
 
 ### JSON output for agents and scripts
 
-Every data command supports `--json` for raw, machine-readable output:
+The standard subcommands remain available for scripts. Data commands support `--json` for raw, machine-readable output:
 
 ```bash
 ceorater lookup AAPL --json

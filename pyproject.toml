@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ceorater"
-version = "0.1.0"
+version = "1.0.0"
 description = "CLI for CEORater — institutional-grade CEO performance analytics"
 readme = "README.md"
 license = {text = "Proprietary"}
