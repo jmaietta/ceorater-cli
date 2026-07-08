@@ -1,126 +1,34 @@
 # CEORater CLI
 
-Command-line interface for [CEORater](https://www.ceorater.com) — institutional-grade CEO performance analytics covering 500+ S&P 500 CEOs.
+Status: paused.
 
-![CEORater CLI homepage](https://raw.githubusercontent.com/jmaietta/ceorater-cli/main/docs/screenshots/ceorater-home.png)
+This repository contains the former CEORater command-line interface. It was designed for users with CEORater API keys and connected to the former public CEORater API at `api.ceorater.com`.
 
-## Install
+The public CEORater API is no longer being offered as an active product. The `api.ceorater.com` subdomain now redirects to the main CEORater website:
 
-```bash
-pip install ceorater
-```
+https://www.ceorater.com
 
-## Setup
+## Historical Notes
 
-Get your API key at [ceorater.com/api-docs.html](https://www.ceorater.com/api-docs.html), then set the `CEORATER_API_KEY` environment variable.
+This CLI previously supported:
 
-PowerShell:
+- API key based access through `CEORATER_API_KEY`
+- CEO lookup by ticker
+- CEO search
+- CEO list pagination
+- Dataset status checks
+- JSON output for scripts and agents
 
-```powershell
-$env:CEORATER_API_KEY="your-api-key"
-```
+The code is retained for historical reference in case CEORater reintroduces a public API or command-line product later. It should not be treated as current product documentation or an actively supported integration surface.
 
-macOS/Linux:
+## Current CEORater Access
 
-```bash
-export CEORATER_API_KEY="your-api-key"
-```
+Use the main CEORater website:
 
-## Commands
-
-Run the terminal:
-
-```bash
-ceorater
-```
-
-The interactive prompt uses slash commands:
-
-| Command | Description |
-|---------|-------------|
-| `/ticker` | CEO Analytics by ticker |
-| `/list` | List CEOs |
-| `/status` | Dataset freshness and API status |
-| `/help` | Show command menu |
-| `/exit` | Quit |
-
-### Look up a CEO by ticker
-
-```bash
-ceorater
-/NVDA
-```
-
-```
-  NVIDIA (NVDA)
-  CEO: Jensen Huang  |  Founder: Yes  |  Tenure: 27.3 yrs
-  Sector: Technology  |  Industry: Semiconductors
-
-  Metric                  Value
-  CEORaterScore              99
-  AlphaScore                100
-  RevCAGR Score             100
-  CompScore                   A
-
-  TSR Multiple         589,250%
-  Avg Annual TSR        21,578%
-  TSR vs SPY           588,370%
-  Avg Annual vs SPY     21,546%
-
-  Compensation ($M)      $49.9M
-  Cost/1% TSR ($M)        $0.0M
-  Revenue CAGR            69.3%
-```
-
-### List all CEOs (paginated)
-
-```bash
-ceorater
-/list
-```
-
-### Check data freshness
-
-```bash
-ceorater
-/status
-```
-
-### JSON output for agents and scripts
-
-The standard subcommands remain available for scripts. Data commands support `--json` for raw, machine-readable output:
-
-```bash
-ceorater lookup AAPL --json
-```
-
-```json
-{
-  "companyName": "Apple Inc.",
-  "ticker": "AAPL",
-  "ceoraterScore": 76.2,
-  "alphaScore": 93.9,
-  "compScore": "C",
-  ...
-}
-```
-
-## Metrics
-
-| Metric | Description |
-|--------|-------------|
-| CEORaterScore | Composite CEO effectiveness rating (0-100) |
-| AlphaScore | Market outperformance score (0-100) |
-| RevCAGR Score | Tenure-adjusted revenue growth percentile (0-100) |
-| CompScore | Compensation efficiency grade (A-F) |
-| TSR Multiple | Total Shareholder Return during tenure |
-| Cost/1% TSR | CEO compensation cost per 1% of average annual TSR |
-
-## Requirements
-
-- Python 3.9+
-- CEORater API subscription ($99/month) — [subscribe here](https://www.ceorater.com/api-docs.html)
+https://www.ceorater.com
 
 ## License
 
-Proprietary. See [terms of service](https://www.ceorater.com/terms.html).
+Proprietary. See:
+
+https://www.ceorater.com/terms.html
