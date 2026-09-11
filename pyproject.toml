@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ceorater"
-version = "2.0.0"
+version = "2.0.1"
 description = "CEO performance from the command line — total stock return, the S&P 500 over the same tenure, and compensation for 500+ companies. Free, no API key."
 readme = "README.md"
 license = {text = "Proprietary"}

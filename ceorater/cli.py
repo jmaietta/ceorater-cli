@@ -91,54 +91,43 @@ def _val(ceo: dict, key: str) -> str:
 
 
 def _print_ceo_card(ceo: dict) -> None:
-    """One CEO as label/value rows.
+    """One CEO. Same block layout every command uses, so the field list never
+    differs between a lookup, a list and a search."""
+    _print_block(ceo)
 
-    Deliberately not a wide table: ten columns do not fit a console, and the
-    usual fix silently drops the right-hand ones -- which are the returns and
-    the compensation. A card cannot lose a field at any width.
-    """
-    console.print()
-    console.print(f"  [bold]{ceo.get('company', '')}[/bold] ([bold green]{ceo.get('ticker', '')}[/bold green])")
+
+def _print_block(c: dict) -> None:
     t = Table(show_header=False, box=None, padding=(0, 2))
     t.add_column("Field", style="grey70", no_wrap=True)
-    t.add_column("Value", style="white")
+    t.add_column("Value", style="white", overflow="fold")
     for key, label in FIELDS:
-        if key in ("company", "ticker"):
-            continue
         style = ""
-        if key == "total_return_pct" and isinstance(ceo.get(key), (int, float)):
-            style = "green" if ceo[key] >= 0 else "red"
-        t.add_row(label, f"[{style}]{_val(ceo, key)}[/{style}]" if style else _val(ceo, key))
-    console.print(t)
+        if key == "total_return_pct" and isinstance(c.get(key), (int, float)):
+            style = "green" if c[key] >= 0 else "red"
+        v = _val(c, key)
+        t.add_row(label, f"[{style}]{v}[/{style}]" if style else v)
     console.print()
+    console.print(t)
 
 
-def _print_ceo_table(items: list[dict]) -> None:
-    """Many CEOs. rich wraps rather than discarding columns, so nothing is lost."""
-    t = Table(show_header=True, header_style="bold", box=None, padding=(0, 2))
-    t.add_column("Ticker", style="bold green", no_wrap=True)
-    t.add_column("CEO", overflow="fold")
-    t.add_column("Sector", overflow="fold")
-    t.add_column("Tenure", justify="right", no_wrap=True)
-    t.add_column("Return", justify="right", no_wrap=True)
-    t.add_column("S&P 500", justify="right", no_wrap=True)
-    t.add_column("Comp", justify="right", no_wrap=True)
+def _print_ceo_list(items: list[dict]) -> None:
+    """Many CEOs, one block each, in the column order the site uses.
+
+    Not a table. Ten columns need about 185 characters before they are legible;
+    below that a table either wraps every column to two letters or drops the
+    ones on the right. A block per CEO carries all ten fields at any width,
+    which is the same reason the API docs tell PowerShell users Format-List
+    rather than Format-Table.
+    """
     for c in items:
-        r = c.get("total_return_pct")
-        colour = "green" if isinstance(r, (int, float)) and r >= 0 else "red"
-        t.add_row(
-            c.get("ticker") or "-",
-            c.get("ceo") or "-",
-            c.get("sector") or "-",
-            _years(c.get("tenure_years")),
-            f"[{colour}]{_pct(r)}[/{colour}]",
-            _pct(c.get("spy_return_pct")),
-            _money(c.get("compensation_musd")),
-        )
+        _print_block(c)
     console.print()
-    console.print(t)
-    console.print(f"  [grey70]{len(items)} CEO(s). Use --json for every field, or 'ceorater export' for a CSV.[/grey70]")
+    console.print(f"  [grey70]{len(items)} CEO(s). --json for raw output, or 'ceorater export' for a CSV.[/grey70]")
     console.print()
+
+
+# kept so older call sites keep working
+_print_ceo_table = _print_ceo_list
 
 
 def _handle_error(e: CEORaterError, exit_on_error: bool = True) -> None:
