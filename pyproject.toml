@@ -4,19 +4,23 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ceorater"
-version = "1.0.1"
-description = "Paused legacy CLI for CEORater"
+version = "2.0.0"
+description = "CEO performance from the command line — total stock return, the S&P 500 over the same tenure, and compensation for 500+ companies. Free, no API key."
 readme = "README.md"
 license = {text = "Proprietary"}
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [{name = "Jon Maietta", email = "support@ceorater.com"}]
-keywords = ["ceo", "finance", "investing", "analytics", "sec"]
+keywords = ["ceo", "finance", "investing", "analytics", "sec", "gics", "sp500"]
 classifiers = [
-    "Development Status :: 7 - Inactive",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: Financial and Insurance Industry",
     "Topic :: Office/Business :: Financial :: Investment",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "click>=8.0",
@@ -26,8 +30,12 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://www.ceorater.com"
-Documentation = "https://www.ceorater.com"
+Documentation = "https://www.ceorater.com/api-docs.html"
+Source = "https://github.com/jmaietta/ceorater-cli"
 Support = "https://www.ceorater.com/support.html"
 
 [project.scripts]
 ceorater = "ceorater.cli:main"
+
+[tool.setuptools]
+packages = ["ceorater"]

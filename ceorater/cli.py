@@ -1,8 +1,18 @@
-"""CEORater CLI — command definitions."""
+"""CEORater CLI — command definitions.
 
+Every command prints the ten fields www.ceorater.com displays and nothing else.
+The scores this CLI was built around -- CEORaterScore, AlphaScore, RevCAGR Score
+and CompScore -- have been retired from the product, along with Avg Annual TSR,
+which was computed as total return divided by tenure rather than compounded and
+overstated every multi-year record.
+
+Returns arrive from the API already as percentages: total_return_pct 545800
+means +545,800%, the same figure the website prints.
+"""
+
+import csv
 import io
 import json
-import math
 import sys
 from typing import Optional
 
@@ -18,33 +28,29 @@ from rich.text import Text
 
 from ceorater import __version__
 from ceorater.client import CEORaterError, Client
-from ceorater.config import load_key, save_key
 
 console = Console()
 
-SCORE_FIELDS = [
-    ("ceoraterScore", "CEORaterScore", "0-100"),
-    ("alphaScore", "AlphaScore", "0-100"),
-    ("revenueCagrScore", "RevCAGR Score", "0-100"),
-    ("compScore", "CompScore", "A-F"),
-]
-
-PERF_FIELDS = [
-    ("tsrMultiple", "TSR Multiple"),
-    ("avgAnnualTsrRatio", "Avg Annual TSR"),
-    ("tsrVsSpyRatio", "TSR vs SPY"),
-    ("avgAnnualVsSpyRatio", "Avg Annual vs SPY"),
-]
-
-COMP_FIELDS = [
-    ("compensationMM", "Compensation ($M)"),
-    ("compPer1PctTsrMM", "Cost/1% TSR ($M)"),
+# The ten fields, in the order the site presents them.
+FIELDS = [
+    ("ticker", "Ticker"),
+    ("company", "Company"),
+    ("ceo", "CEO"),
+    ("founder", "Founder"),
+    ("sector", "Sector"),
+    ("industry", "Industry"),
+    ("tenure_years", "Tenure"),
+    ("total_return_pct", "Total Stock Return"),
+    ("spy_return_pct", "S&P 500 Return"),
+    ("compensation_musd", "Compensation"),
 ]
 
 COMMAND_MENU = (
-    ("/ticker", "CEO Analytics by ticker"),
-    ("/list", "List CEOs"),
-    ("/status", "Dataset freshness and API status"),
+    ("/ticker", "One CEO, every field — e.g. /NVDA"),
+    ("/list", "Every CEO"),
+    ("/sectors", "The 11 GICS sectors and their counts"),
+    ("/search TEXT", "Find by company, ticker, CEO, sector or industry"),
+    ("/status", "Row count and data freshness"),
     ("/help", "Show this menu"),
     ("/exit", "Quit"),
 )
@@ -57,21 +63,205 @@ BRAND_ART = """██████╗███████╗ ██████�
 ╚═════╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝"""
 
 
+# ----------------------------------------------------------------- formatting
+
+def _pct(v) -> str:
+    return "-" if v is None else f"{v:,.0f}%"
+
+
+def _money(v) -> str:
+    return "-" if v is None else f"${v:,.1f}M"
+
+
+def _years(v) -> str:
+    return "-" if v is None else f"{v:.1f} yrs"
+
+
+def _val(ceo: dict, key: str) -> str:
+    v = ceo.get(key)
+    if key in ("total_return_pct", "spy_return_pct"):
+        return _pct(v)
+    if key == "compensation_musd":
+        return _money(v)
+    if key == "tenure_years":
+        return _years(v)
+    if key == "founder":
+        return "Yes" if v else "No"
+    return "-" if v in (None, "") else str(v)
+
+
+def _print_ceo_card(ceo: dict) -> None:
+    """One CEO as label/value rows.
+
+    Deliberately not a wide table: ten columns do not fit a console, and the
+    usual fix silently drops the right-hand ones -- which are the returns and
+    the compensation. A card cannot lose a field at any width.
+    """
+    console.print()
+    console.print(f"  [bold]{ceo.get('company', '')}[/bold] ([bold green]{ceo.get('ticker', '')}[/bold green])")
+    t = Table(show_header=False, box=None, padding=(0, 2))
+    t.add_column("Field", style="grey70", no_wrap=True)
+    t.add_column("Value", style="white")
+    for key, label in FIELDS:
+        if key in ("company", "ticker"):
+            continue
+        style = ""
+        if key == "total_return_pct" and isinstance(ceo.get(key), (int, float)):
+            style = "green" if ceo[key] >= 0 else "red"
+        t.add_row(label, f"[{style}]{_val(ceo, key)}[/{style}]" if style else _val(ceo, key))
+    console.print(t)
+    console.print()
+
+
+def _print_ceo_table(items: list[dict]) -> None:
+    """Many CEOs. rich wraps rather than discarding columns, so nothing is lost."""
+    t = Table(show_header=True, header_style="bold", box=None, padding=(0, 2))
+    t.add_column("Ticker", style="bold green", no_wrap=True)
+    t.add_column("CEO", overflow="fold")
+    t.add_column("Sector", overflow="fold")
+    t.add_column("Tenure", justify="right", no_wrap=True)
+    t.add_column("Return", justify="right", no_wrap=True)
+    t.add_column("S&P 500", justify="right", no_wrap=True)
+    t.add_column("Comp", justify="right", no_wrap=True)
+    for c in items:
+        r = c.get("total_return_pct")
+        colour = "green" if isinstance(r, (int, float)) and r >= 0 else "red"
+        t.add_row(
+            c.get("ticker") or "-",
+            c.get("ceo") or "-",
+            c.get("sector") or "-",
+            _years(c.get("tenure_years")),
+            f"[{colour}]{_pct(r)}[/{colour}]",
+            _pct(c.get("spy_return_pct")),
+            _money(c.get("compensation_musd")),
+        )
+    console.print()
+    console.print(t)
+    console.print(f"  [grey70]{len(items)} CEO(s). Use --json for every field, or 'ceorater export' for a CSV.[/grey70]")
+    console.print()
+
+
+def _handle_error(e: CEORaterError, exit_on_error: bool = True) -> None:
+    if e.status == 0:
+        console.print(f"[red]Could not reach the API.[/red] {e}")
+    elif e.status == 404:
+        console.print(f"[yellow]Not found.[/yellow] {e}")
+    elif e.status == 429:
+        console.print("[yellow]Rate limited.[/yellow] 100 requests per 15 minutes. Wait for the window to roll.")
+    elif e.status == 503:
+        console.print(f"[red]CEO data is temporarily unavailable.[/red] {e}")
+    else:
+        console.print(f"[red]Error {e.status}:[/red] {e}")
+    if exit_on_error:
+        sys.exit(1)
+
+
+def _client() -> Client:
+    return Client()
+
+
+# ----------------------------------------------------------------- runners
+
+def _run_lookup(ticker: str, as_json: bool = False, exit_on_error: bool = True) -> None:
+    try:
+        data = _client().lookup(ticker)
+    except CEORaterError as e:
+        _handle_error(e, exit_on_error)
+        return
+    if as_json:
+        click.echo(json.dumps(data, indent=2))
+        return
+    items = data.get("items", [])
+    if len(items) > 1:
+        console.print(f"\n  [grey70]{data.get('ticker')} has {len(items)} co-CEOs.[/grey70]")
+    for ceo in items:
+        _print_ceo_card(ceo)
+
+
+def _run_list(limit=None, offset=0, sector=None, industry=None, founder=None,
+              as_json=False, exit_on_error=True) -> None:
+    try:
+        data = _client().list_ceos(limit=limit, offset=offset, sector=sector,
+                                   industry=industry, founder=founder)
+    except CEORaterError as e:
+        _handle_error(e, exit_on_error)
+        return
+    if as_json:
+        click.echo(json.dumps(data, indent=2))
+        return
+    items = data.get("items", [])
+    bits = [f"{data.get('total', len(items))} CEO(s)"]
+    if sector:
+        bits.append(f"sector={sector}")
+    if industry:
+        bits.append(f"industry={industry}")
+    if founder is not None:
+        bits.append(f"founder={str(founder).lower()}")
+    console.print(f"\n  [bold]{' · '.join(bits)}[/bold]")
+    if not items:
+        console.print("  [yellow]Nothing matched.[/yellow] Try 'ceorater sectors' for the valid values.\n")
+        return
+    _print_ceo_table(items)
+
+
+def _run_meta(as_json: bool = False, exit_on_error: bool = True) -> None:
+    try:
+        data = _client().meta()
+    except CEORaterError as e:
+        _handle_error(e, exit_on_error)
+        return
+    if as_json:
+        click.echo(json.dumps(data, indent=2))
+        return
+    t = Table(show_header=False, box=None, padding=(0, 2))
+    t.add_column("k", style="grey70", no_wrap=True)
+    t.add_column("v", style="white")
+    t.add_row("CEOs", str(data.get("count", "-")))
+    t.add_row("Last updated", str(data.get("last_updated", "-")))
+    t.add_row("Cache age", f"{data.get('cache_age_seconds', '-')}s")
+    t.add_row("API version", str(data.get("api_version", "-")))
+    t.add_row("Fields", ", ".join(data.get("fields", [])))
+    console.print()
+    console.print(t)
+    console.print()
+
+
+def _run_sectors(as_json: bool = False, exit_on_error: bool = True) -> None:
+    try:
+        data = _client().sectors()
+    except CEORaterError as e:
+        _handle_error(e, exit_on_error)
+        return
+    if as_json:
+        click.echo(json.dumps(data, indent=2))
+        return
+    t = Table(show_header=True, header_style="bold", box=None, padding=(0, 2))
+    t.add_column("Sector")
+    t.add_column("Companies", justify="right")
+    for row in data.get("items", []):
+        t.add_row(row.get("sector", "-"), str(row.get("companies", "-")))
+    console.print()
+    console.print(t)
+    console.print(f"  [grey70]{data.get('standard', '')}[/grey70]\n")
+
+
+# ----------------------------------------------------------------- interactive
+
 def _print_home() -> None:
-    brand_width = max(len(line) for line in BRAND_ART.splitlines())
+    width = max(len(l) for l in BRAND_ART.splitlines())
     brand = Text(BRAND_ART, style="bold white")
     brand.append("\n")
-    brand.append("CEORater".center(brand_width), style="bold green")
+    brand.append("CEORater".center(width), style="bold green")
     brand.append("\n")
-    brand.append("CEO Analytics from the command line".center(brand_width), style="green")
+    brand.append("CEO performance from the command line".center(width), style="green")
     brand.append("\n")
-    brand.append(f"v{__version__}".center(brand_width), style="grey70")
+    brand.append(f"v{__version__} · free · no API key".center(width), style="grey70")
 
     menu = Table(show_header=True, header_style="bold", box=None, padding=(0, 3))
     menu.add_column("Command", style="bold green", no_wrap=True)
     menu.add_column("Description", style="white")
-    for command, description in COMMAND_MENU:
-        menu.add_row(command, description)
+    for c, d in COMMAND_MENU:
+        menu.add_row(c, d)
 
     console.print()
     console.print(Panel(Align.center(brand), border_style="green", padding=(0, 3)))
@@ -79,322 +269,146 @@ def _print_home() -> None:
     console.print()
 
 
-def _get_client(exit_on_missing: bool = True) -> Optional[Client]:
-    key = load_key()
-    if not key:
-        console.print(
-            "[red]No API key found.[/red] Set [bold]CEORATER_API_KEY[/bold] in your environment and try again."
-        )
-        if exit_on_missing:
-            sys.exit(1)
-        return None
-    return Client(key)
-
-
-def _handle_error(e: CEORaterError, exit_on_error: bool = True) -> None:
-    if e.status == 401:
-        console.print("[red]Unauthorized.[/red] Check your [bold]CEORATER_API_KEY[/bold] environment variable.")
-    elif e.status == 403:
-        console.print(f"[red]Subscription required.[/red] {e}")
-    elif e.status == 404:
-        console.print(f"[yellow]Not found.[/yellow] {e}")
-    else:
-        console.print(f"[red]Error {e.status}:[/red] {e}")
-    if exit_on_error:
-        sys.exit(1)
-
-
-def _fmt_pct(val) -> str:
-    if val is None:
-        return "-"
-    return f"{val * 100:,.0f}%"
-
-
-def _fmt_score(val) -> str:
-    if val is None:
-        return "-"
-    if isinstance(val, str):
-        return val
-    return str(math.floor(val + 0.5))
-
-
-def _fmt_money(val) -> str:
-    if val is None:
-        return "-"
-    return f"${val:,.1f}M"
-
-
-def _fmt_years(val) -> str:
-    if val is None:
-        return "-"
-    return f"{val:.1f} yrs"
-
-
-def _print_ceo_card(ceo: dict) -> None:
-    console.print()
-    console.print(f"  [bold]{ceo.get('companyName', '')}[/bold] ({ceo.get('ticker', '')})")
-    console.print(f"  CEO: {ceo.get('ceo', '')}  |  Founder: {'Yes' if ceo.get('founderCEO') else 'No'}  |  Tenure: {_fmt_years(ceo.get('tenureYears'))}")
-    console.print(f"  Sector: {ceo.get('sector', '')}  |  Industry: {ceo.get('industry', '')}")
-    console.print()
-
-    t = Table(show_header=True, header_style="bold", box=None, padding=(0, 2))
-    t.add_column("Metric")
-    t.add_column("Value", justify="right")
-
-    for key, label, _ in SCORE_FIELDS:
-        t.add_row(label, _fmt_score(ceo.get(key)))
-
-    t.add_row("", "")
-    for key, label in PERF_FIELDS:
-        t.add_row(label, _fmt_pct(ceo.get(key)))
-
-    t.add_row("", "")
-    for key, label in COMP_FIELDS:
-        t.add_row(label, _fmt_money(ceo.get(key)))
-
-    rev_cagr = ceo.get("revenueCagr")
-    if rev_cagr is not None:
-        t.add_row("Revenue CAGR", f"{rev_cagr * 100:.1f}%")
-
-    console.print(t)
-    console.print()
-
-
-def _print_ceo_table(items: list[dict]) -> None:
-    t = Table(show_header=True, header_style="bold", box=None, padding=(0, 2))
-    t.add_column("Ticker", style="bold")
-    t.add_column("Company")
-    t.add_column("CEO")
-    t.add_column("Score", justify="right")
-    t.add_column("Alpha", justify="right")
-    t.add_column("RevCAGR", justify="right")
-    t.add_column("Comp", justify="center")
-    t.add_column("Tenure", justify="right")
-
-    for ceo in items:
-        t.add_row(
-            ceo.get("ticker", ""),
-            (ceo.get("companyName") or "")[:30],
-            (ceo.get("ceo") or "")[:25],
-            _fmt_score(ceo.get("ceoraterScore")),
-            _fmt_score(ceo.get("alphaScore")),
-            _fmt_score(ceo.get("revenueCagrScore")),
-            ceo.get("compScore") or "-",
-            _fmt_years(ceo.get("tenureYears")),
-        )
-
-    console.print()
-    console.print(t)
-    console.print()
-
-
-def _run_lookup(ticker: str, as_json: bool = False, exit_on_error: bool = True) -> None:
-    client = _get_client(exit_on_missing=exit_on_error)
-    if client is None:
-        return
-
-    try:
-        data = client.lookup(ticker.upper())
-    except CEORaterError as e:
-        _handle_error(e, exit_on_error=exit_on_error)
-        return
-
-    if as_json:
-        click.echo(json.dumps(data, indent=2))
-        return
-
-    if isinstance(data, list):
-        for ceo in data:
-            _print_ceo_card(ceo)
-    else:
-        _print_ceo_card(data)
-
-
-def _run_list_ceos(
-    limit: int = 20,
-    offset: int = 0,
-    as_json: bool = False,
-    exit_on_error: bool = True,
-) -> None:
-    client = _get_client(exit_on_missing=exit_on_error)
-    if client is None:
-        return
-
-    try:
-        data = client.list_ceos(limit=limit, offset=offset)
-    except CEORaterError as e:
-        _handle_error(e, exit_on_error=exit_on_error)
-        return
-
-    if as_json:
-        click.echo(json.dumps(data, indent=2))
-        return
-
-    items = data.get("items", [])
-    total = data.get("total", "?")
-    console.print(f"\n  Showing {offset + 1}-{offset + len(items)} of [bold]{total}[/bold]")
-    if items:
-        _print_ceo_table(items)
-
-
-def _run_meta(as_json: bool = False, exit_on_error: bool = True) -> None:
-    client = _get_client(exit_on_missing=exit_on_error)
-    if client is None:
-        return
-
-    try:
-        data = client.meta()
-    except CEORaterError as e:
-        _handle_error(e, exit_on_error=exit_on_error)
-        return
-
-    if as_json:
-        click.echo(json.dumps(data, indent=2))
-        return
-
-    console.print()
-    console.print(f"  CEOs available : [bold]{data.get('count', '?')}[/bold]")
-    console.print(f"  Last updated   : {data.get('last_loaded', '?')}")
-    console.print(f"  API version    : {data.get('api_version', '?')}")
-    console.print(f"  Base URL       : {data.get('base_url', '?')}")
-    console.print()
-
-
 def _interactive_loop() -> None:
     _print_home()
-
     while True:
         try:
-            raw = console.input("[bold green]ceorater>[/bold green] ")
+            raw = console.input("[bold green]ceorater[/bold green] > ").strip()
         except (EOFError, KeyboardInterrupt):
             console.print()
             return
-
-        line = raw.strip()
-        if not line:
+        if not raw:
             continue
-
-        if not line.startswith("/"):
-            console.print("[yellow]Commands start with /.[/yellow] Type [bold]/help[/bold].")
-            continue
-
-        command = line[1:].strip()
-        if not command:
-            continue
-
-        parts = command.split()
-        verb = parts[0].lower()
-
-        if verb in ("exit", "quit", "q"):
-            console.print("[grey70]Goodbye.[/grey70]")
+        cmd = raw[1:] if raw.startswith("/") else raw
+        low = cmd.lower()
+        if low in ("exit", "quit"):
             return
-
-        if verb == "help":
+        if low == "help":
             _print_home()
-            continue
-
-        if verb == "status":
-            if len(parts) > 1:
-                console.print("[yellow]Usage:[/yellow] /status")
-                continue
+        elif low == "list":
+            _run_list(exit_on_error=False)
+        elif low == "sectors":
+            _run_sectors(exit_on_error=False)
+        elif low == "status":
             _run_meta(exit_on_error=False)
-            continue
-
-        if verb == "list":
-            limit = 20
-            if len(parts) > 1:
-                try:
-                    limit = int(parts[1])
-                except ValueError:
-                    console.print("[yellow]Usage:[/yellow] /list")
-                    continue
-            _run_list_ceos(limit=limit, exit_on_error=False)
-            continue
-
-        if len(parts) == 1:
-            _run_lookup(parts[0].upper(), exit_on_error=False)
-            continue
-
-        console.print("[yellow]Unknown command.[/yellow] Type [bold]/help[/bold].")
+        elif low.startswith("search "):
+            q = cmd[7:].strip()
+            try:
+                data = _client().search(q)
+                console.print(f"\n  [bold]{data.get('count', 0)}[/bold] result(s) for \"{q}\"")
+                if data.get("items"):
+                    _print_ceo_table(data["items"])
+            except CEORaterError as e:
+                _handle_error(e, exit_on_error=False)
+        else:
+            _run_lookup(cmd, exit_on_error=False)
 
 
-# ── CLI Group ────────────────────────────────────────────────────────────────
+# ----------------------------------------------------------------- commands
 
-
-@click.group(invoke_without_command=True, no_args_is_help=False)
+@click.group(invoke_without_command=True)
 @click.version_option(version=__version__, prog_name="ceorater")
 @click.pass_context
 def main(ctx: click.Context):
-    """CEORater — CEO performance analytics from the command line."""
+    """CEORater — CEO performance from the command line. Free, no API key."""
     if ctx.invoked_subcommand is None:
         _interactive_loop()
 
 
-@main.command(hidden=True)
-def configure():
-    """Save your CEORater API key."""
-    key = click.prompt("Enter your CEORater API key", hide_input=True)
-    key = key.strip()
-
-    if not key:
-        console.print("[red]No key entered.[/red]")
-        return
-
-    console.print("Testing connection...", end=" ")
-    try:
-        client = Client(key)
-        meta = client.meta()
-        save_key(key)
-        count = meta.get("count", "?")
-        version = meta.get("api_version", "?")
-        console.print(f"[green]Connected.[/green] {count} CEOs available. API v{version}.")
-    except CEORaterError as e:
-        console.print(f"[red]Failed.[/red] {e}")
-    except Exception as e:
-        console.print(f"[red]Connection error.[/red] {e}")
-
-
 @main.command()
 @click.argument("ticker")
-@click.option("--json", "as_json", is_flag=True, help="Output raw JSON")
+@click.option("--json", "as_json", is_flag=True, help="Raw JSON")
 def lookup(ticker: str, as_json: bool):
-    """Look up a CEO by ticker symbol."""
+    """One CEO by ticker. Co-CEOs return a card each."""
     _run_lookup(ticker, as_json=as_json)
 
 
-@main.command(hidden=True)
-@click.argument("query")
-@click.option("--json", "as_json", is_flag=True, help="Output raw JSON")
-def search(query: str, as_json: bool):
-    """Search by company name, ticker, CEO, sector, or industry."""
-    client = _get_client()
-    try:
-        data = client.search(query)
-    except CEORaterError as e:
-        _handle_error(e)
-
-    if as_json:
-        click.echo(json.dumps(data, indent=2))
-        return
-
-    items = data.get("items", [])
-    count = data.get("count", len(items))
-    console.print(f"\n  [bold]{count}[/bold] result(s) for \"{query}\"")
-    if items:
-        _print_ceo_table(items)
-
-
 @main.command("list")
-@click.option("--limit", default=20, show_default=True, help="Number of results")
-@click.option("--offset", default=0, show_default=True, help="Starting position")
-@click.option("--json", "as_json", is_flag=True, help="Output raw JSON")
-def list_ceos(limit: int, offset: int, as_json: bool):
-    """List CEOs (paginated)."""
-    _run_list_ceos(limit=limit, offset=offset, as_json=as_json)
+@click.option("--limit", type=int, default=None, help="Default: every CEO")
+@click.option("--offset", type=int, default=0, show_default=True)
+@click.option("--sector", default=None, help="Exact GICS sector, e.g. 'Energy'")
+@click.option("--industry", default=None, help="Exact GICS sub-industry")
+@click.option("--founder/--no-founder", "founder", default=None, help="Founder-led only")
+@click.option("--json", "as_json", is_flag=True, help="Raw JSON")
+def list_ceos(limit, offset, sector, industry, founder, as_json):
+    """Every CEO. Filter with --sector, --industry or --founder."""
+    _run_list(limit=limit, offset=offset, sector=sector, industry=industry,
+              founder=founder, as_json=as_json)
 
 
 @main.command()
-@click.option("--json", "as_json", is_flag=True, help="Output raw JSON")
+@click.argument("query")
+@click.option("--json", "as_json", is_flag=True, help="Raw JSON")
+def search(query: str, as_json: bool):
+    """Substring search across company, ticker, CEO, sector and industry."""
+    try:
+        data = _client().search(query)
+    except CEORaterError as e:
+        _handle_error(e)
+        return
+    if as_json:
+        click.echo(json.dumps(data, indent=2))
+        return
+    console.print(f"\n  [bold]{data.get('count', 0)}[/bold] result(s) for \"{query}\"")
+    if data.get("items"):
+        _print_ceo_table(data["items"])
+
+
+@main.command()
+@click.option("--json", "as_json", is_flag=True, help="Raw JSON")
+def sectors(as_json: bool):
+    """The 11 GICS sectors, with a company count for each."""
+    _run_sectors(as_json=as_json)
+
+
+@main.command()
+@click.option("--sector", default=None, help="Only this sector's sub-industries")
+@click.option("--json", "as_json", is_flag=True, help="Raw JSON")
+def industries(sector, as_json):
+    """GICS sub-industries, with a company count for each."""
+    try:
+        data = _client().industries(sector=sector)
+    except CEORaterError as e:
+        _handle_error(e)
+        return
+    if as_json:
+        click.echo(json.dumps(data, indent=2))
+        return
+    t = Table(show_header=True, header_style="bold", box=None, padding=(0, 2))
+    t.add_column("Industry", overflow="fold")
+    t.add_column("Sector", overflow="fold")
+    t.add_column("Companies", justify="right")
+    for row in data.get("items", []):
+        t.add_row(row.get("industry", "-"), row.get("sector", "-"), str(row.get("companies", "-")))
+    console.print()
+    console.print(t)
+    console.print(f"  [grey70]{data.get('standard', '')}[/grey70]\n")
+
+
+@main.command()
+@click.argument("path", type=click.Path(dir_okay=False, writable=True), default="ceorater.csv")
+@click.option("--sector", default=None, help="Only this sector")
+def export(path: str, sector):
+    """Write every CEO and every field to a CSV."""
+    try:
+        data = _client().list_ceos(sector=sector)
+    except CEORaterError as e:
+        _handle_error(e)
+        return
+    items = data.get("items", [])
+    if not items:
+        console.print("[yellow]Nothing to write.[/yellow]")
+        return
+    cols = [k for k, _ in FIELDS]
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=cols, extrasaction="ignore")
+        w.writeheader()
+        w.writerows(items)
+    console.print(f"  Wrote [bold]{len(items)}[/bold] CEOs and {len(cols)} fields to [bold]{path}[/bold]")
+
+
+@main.command()
+@click.option("--json", "as_json", is_flag=True, help="Raw JSON")
 def meta(as_json: bool):
-    """Show API metadata and data freshness."""
+    """Row count and data freshness."""
     _run_meta(as_json=as_json)

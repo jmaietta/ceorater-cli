@@ -1,3 +1,3 @@
-"""CEORater CLI — institutional-grade CEO performance analytics."""
+"""CEORater CLI — CEO performance from the command line. Free, no API key."""
 
-__version__ = "1.0.1"
+__version__ = "2.0.0"

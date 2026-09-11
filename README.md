@@ -1,34 +1,143 @@
 # CEORater CLI
 
-Status: paused.
+CEO performance from the command line. Total stock return over each CEO's
+tenure, the S&P 500's return over that same tenure, how long they have been in
+the job, and what they were paid — for 500+ companies.
 
-This repository contains the former CEORater command-line interface. It was designed for users with CEORater API keys and connected to the former public CEORater API at `api.ceorater.com`.
+**Free. No account, no API key, no signup.**
 
-The public CEORater API is no longer being offered as an active product. The `api.ceorater.com` subdomain now redirects to the main CEORater website:
+```
+pip install ceorater
+```
 
-https://www.ceorater.com
+---
 
-## Historical Notes
+## Use it
 
-This CLI previously supported:
+```
+ceorater lookup NVDA
+```
 
-- API key based access through `CEORATER_API_KEY`
-- CEO lookup by ticker
-- CEO search
-- CEO list pagination
-- Dataset status checks
-- JSON output for scripts and agents
+```
+  NVIDIA (NVDA)
+  CEO                   Jensen Huang
+  Founder               Yes
+  Sector                Information Technology
+  Industry              Semiconductors
+  Tenure                27.6 yrs
+  Total Stock Return    545,800%
+  S&P 500 Return        892%
+  Compensation          $36.3M
+```
 
-The code is retained for historical reference in case CEORater reintroduces a public API or command-line product later. It should not be treated as current product documentation or an actively supported integration surface.
+Run `ceorater` with no arguments for an interactive session.
 
-## Current CEORater Access
+### Every CEO
 
-Use the main CEORater website:
+```
+ceorater list
+```
 
-https://www.ceorater.com
+### Filter
 
-## License
+```
+ceorater list --sector Energy
+ceorater list --industry Semiconductors
+ceorater list --founder
+ceorater list --sector "Information Technology" --founder
+```
 
-Proprietary. See:
+Sectors and industries are exact and case-insensitive. To see the valid values:
 
-https://www.ceorater.com/terms.html
+```
+ceorater sectors
+ceorater industries --sector "Health Care"
+```
+
+### Search
+
+Loose substring match across company, ticker, CEO, sector and industry.
+
+```
+ceorater search huang
+```
+
+### Get the data out
+
+```
+ceorater export ceorater.csv
+ceorater list --json > ceorater.json
+```
+
+`export` writes all 513 CEOs and all ten fields. Every command takes `--json`.
+
+### Freshness
+
+```
+ceorater meta
+```
+
+---
+
+## The fields
+
+Exactly the ten www.ceorater.com displays — no more, no less.
+
+| Field | Meaning |
+|---|---|
+| `ticker` | Exchange ticker |
+| `company` | Registrant name as filed |
+| `ceo` | Chief executive |
+| `founder` | Whether this CEO founded the company |
+| `sector` | GICS sector |
+| `industry` | GICS sub-industry |
+| `tenure_years` | Years in the role |
+| `total_return_pct` | Total stock return across the tenure, as a percentage |
+| `spy_return_pct` | The S&P 500 over that same period |
+| `compensation_musd` | Reported compensation, in millions of USD |
+
+Returns are already percentages: `545800` means +545,800%, the same figure the
+website prints. Nothing to convert.
+
+**Sectors and industries are S&P's own GICS values**, matched company by company
+on SEC CIK rather than on ticker, because tickers get reassigned and CIKs do
+not. Eleven sectors, 128 sub-industries, no second spelling of anything.
+
+**Co-CEOs get a record each.** Oracle, KKR, Globe Life, Lululemon and Netflix
+each return two people with their own start dates and their own returns, so
+`lookup` prints a card per person and `items` is always a list.
+
+---
+
+## Upgrading from 1.x
+
+Version 1 required a `CEORATER_API_KEY` and called a paid API that no longer
+exists — every command in it now fails. Version 2 needs no key and is not
+configurable; delete `~/.ceorater/config.json` if you have one.
+
+The scores are gone. CEORaterScore, AlphaScore, RevCAGR Score and CompScore have
+been retired from the product, and so has Avg Annual TSR, which was computed as
+total return divided by tenure rather than compounded and overstated every
+multi-year record. What remains is reported figures only.
+
+---
+
+## API
+
+The CLI is a thin client over a public HTTP API you can call directly:
+
+```
+curl -s https://api.ceorater.com/api/v1/ceo/NVDA
+```
+
+Documented at https://www.ceorater.com/api-docs.html
+
+Rate limit is 100 requests per 15 minutes per IP. One call to
+`/api/v1/ceos` returns every CEO, which is kinder than 513 lookups.
+
+---
+
+## Licence
+
+Proprietary. Free to use, including commercially. Attribution appreciated.
+See https://www.ceorater.com/terms.html
