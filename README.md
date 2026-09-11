@@ -6,8 +6,66 @@ the job, and what they were paid — for 500+ companies.
 
 **Free. No account, no API key, no signup.**
 
+---
+
+## Install
+
+Needs Python 3.10 or newer.
+
+### Windows
+
 ```
 pip install ceorater
+```
+
+If `pip` is not recognised, use:
+
+```
+py -m pip install ceorater
+```
+
+### macOS
+
+```
+brew install pipx
+pipx install ceorater
+```
+
+Homebrew's Python refuses `pip install` into the system environment, so plain
+`pip install ceorater` fails with *externally-managed-environment*. `pipx` is the
+supported way to install command-line tools and puts `ceorater` on your PATH.
+
+Already have pipx? Just `pipx install ceorater`.
+
+### Linux
+
+```
+sudo apt install pipx      # Debian, Ubuntu
+sudo dnf install pipx      # Fedora, RHEL
+pipx install ceorater
+```
+
+Recent distributions block `pip install` into the system Python for the same
+reason as macOS. If your distribution has no `pipx` package:
+
+```
+python3 -m pip install --user pipx
+python3 -m pipx ensurepath
+pipx install ceorater
+```
+
+### Any platform, inside a virtual environment
+
+```
+python -m venv .venv
+source .venv/bin/activate           # Windows: .venv\Scripts\activate
+pip install ceorater
+```
+
+### Check it worked
+
+```
+ceorater --version
 ```
 
 ---
