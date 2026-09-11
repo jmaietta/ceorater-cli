@@ -77,7 +77,8 @@ ceorater lookup NVDA
 ```
 
 ```
-  NVIDIA (NVDA)
+  Ticker                NVDA
+  Company               NVIDIA
   CEO                   Jensen Huang
   Founder               Yes
   Sector                Information Technology
