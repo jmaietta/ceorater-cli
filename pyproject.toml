@@ -4,15 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ceorater"
-version = "2.0.1"
+version = "2.0.2"
 description = "CEO performance from the command line — total stock return, the S&P 500 over the same tenure, and compensation for 500+ companies. Free, no API key."
 readme = "README.md"
-license = {text = "Proprietary"}
+license = {text = "MIT"}
 requires-python = ">=3.10"
 authors = [{name = "Jon Maietta", email = "support@ceorater.com"}]
 keywords = ["ceo", "finance", "investing", "analytics", "sec", "gics", "sp500"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: MIT License",
     "Environment :: Console",
     "Intended Audience :: Financial and Insurance Industry",
     "Topic :: Office/Business :: Financial :: Investment",

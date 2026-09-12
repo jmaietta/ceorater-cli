@@ -198,5 +198,7 @@ Rate limit is 100 requests per 15 minutes per IP. One call to
 
 ## Licence
 
-Proprietary. Free to use, including commercially. Attribution appreciated.
-See https://www.ceorater.com/terms.html
+MIT. The client is yours to use, fork and embed.
+
+The CEO data it retrieves is free to use, including commercially; attribution to
+CEORater is appreciated. See https://www.ceorater.com/terms.html
